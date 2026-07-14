@@ -1,7 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AreaProgress, Task } from "@/lib/types";
+import type { AreaProgress, ProjectProgress, Task } from "@/lib/types";
+
+/* Phase 3 (Google, read-only) response shapes — defined locally so no
+   server module is ever imported into the client bundle. */
+interface TodayEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  location: string;
+}
+interface MailItem {
+  id: string;
+  subject: string;
+  from: string;
+  date: string;
+  snippet: string;
+}
+type GoogleSection<T> =
+  | { available: true; data: T[] }
+  | { available: false; reason: string }
+  | null;
 
 /* ────────────────────────────────────────────────────────────────────
    The phone face. Renders ONLY from the same task rows the checkboxes
@@ -69,6 +91,9 @@ export default function Brief() {
   const [handoffPick, setHandoffPick] = useState(HANDOFF_PEOPLE[0]);
   const [handoffOther, setHandoffOther] = useState("");
   const [noteText, setNoteText] = useState("");
+  const [today, setToday] = useState<GoogleSection<TodayEvent>>(null);
+  const [mail, setMail] = useState<GoogleSection<MailItem>>(null);
+  const [projects, setProjects] = useState<ProjectProgress[]>([]);
 
   const queueRef = useRef<QueueItem[]>([]);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,6 +121,34 @@ export default function Brief() {
     setTasks(await tRes.json());
   }, []);
 
+  /* Phase 3 extras — never block the task list; honest states only. */
+  const fetchExtras = useCallback(async () => {
+    try {
+      const r = await fetch("/api/google/today", { cache: "no-store" });
+      if (r.ok) {
+        const d = await r.json();
+        setToday(d.available ? { available: true, data: d.events } : { available: false, reason: d.reason });
+      }
+    } catch {
+      setToday({ available: false, reason: "unavailable" });
+    }
+    try {
+      const r = await fetch("/api/google/inbox", { cache: "no-store" });
+      if (r.ok) {
+        const d = await r.json();
+        setMail(d.available ? { available: true, data: d.items } : { available: false, reason: d.reason });
+      }
+    } catch {
+      setMail({ available: false, reason: "unavailable" });
+    }
+    try {
+      const r = await fetch("/api/progress", { cache: "no-store" });
+      if (r.ok) setProjects((await r.json()).projects || []);
+    } catch {
+      /* project rollups are cosmetic; area bars still render from tasks */
+    }
+  }, []);
+
   useEffect(() => {
     queueRef.current = loadQueue();
     setPending(queueRef.current.length);
@@ -105,7 +158,8 @@ export default function Brief() {
         setLoaded(true);
         setLoadError("Couldn't reach the list. Showing nothing rather than something stale — pull to retry.");
       });
-  }, [fetchAll]);
+    fetchExtras();
+  }, [fetchAll, fetchExtras]);
 
   /* ── write path: optimistic + confirmed-save + retry queue ────── */
 
@@ -407,6 +461,76 @@ export default function Brief() {
 
       {loaded && !loadError && (
         <>
+          {/* Today (Google Calendar, read-only) — All view only */}
+          {active === "all" && today && (
+            <>
+              {today.available === false && today.reason === "unavailable" && (
+                <div className="mb-2 rounded-[11px] border border-line bg-paper px-[13px] py-[11px] text-[12.5px] italic text-muted">
+                  Calendar unavailable right now.
+                </div>
+              )}
+              {today.available && (
+                <div className="mb-2">
+                  <div className="mx-0.5 mb-2 mt-2 text-[10.5px] font-bold uppercase tracking-[0.1em] text-navysoft">
+                    Today
+                  </div>
+                  {today.data.length === 0 ? (
+                    <div className="rounded-[11px] border border-line bg-paper px-[13px] py-[11px] text-[13px] italic text-muted">
+                      Nothing on the calendar today.
+                    </div>
+                  ) : (
+                    <div className="rounded-[11px] border border-line bg-paper px-[13px] py-[5px]">
+                      {today.data.map((e) => (
+                        <div key={e.id} className="flex items-baseline gap-3 border-b border-line py-[7px] last:border-b-0">
+                          <span className="w-[64px] flex-none text-[12px] font-semibold text-navysoft">
+                            {e.allDay
+                              ? "All day"
+                              : new Date(e.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[14px] font-semibold text-ink">{e.title}</span>
+                            {e.location && (
+                              <span className="block truncate text-[11.5px] text-muted">{e.location}</span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Flagged mail (Gmail, read-only) — All view only */}
+          {active === "all" && mail && (
+            <>
+              {mail.available === false && mail.reason === "unavailable" && (
+                <div className="mb-2 rounded-[11px] border border-line bg-paper px-[13px] py-[11px] text-[12.5px] italic text-muted">
+                  Mail unavailable right now.
+                </div>
+              )}
+              {mail.available && mail.data.length > 0 && (
+                <div className="mb-2">
+                  <div className="mx-0.5 mb-2 mt-2 text-[10.5px] font-bold uppercase tracking-[0.1em] text-navysoft">
+                    From the inbox
+                  </div>
+                  <div className="rounded-[11px] border border-line bg-paper px-[13px] py-[5px]">
+                    {mail.data.map((m) => (
+                      <div key={m.id} className="border-b border-line py-[7px] last:border-b-0">
+                        <div className="truncate text-[14px] font-semibold text-ink">{m.subject}</div>
+                        <div className="truncate text-[11.5px] text-muted">
+                          {m.from}
+                          {m.snippet && <> &middot; {m.snippet}</>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
           {/* Progress */}
           {active === "all" ? (
             <div>
@@ -440,19 +564,45 @@ export default function Brief() {
             (() => {
               const meta = areaMeta.get(active);
               const c = counts(active);
+              const areaProjects = projects.filter((p) => p.areaId === active && p.total > 0);
               return (
-                <div className="mb-3 rounded-[13px] bg-navy px-4 py-[15px] text-white">
-                  <div className="text-[17px] font-bold">{meta?.name || active}</div>
-                  {meta?.endInMind && (
-                    <div className="mt-0.5 text-[13px] italic text-[#cfdbe1]">{meta.endInMind}</div>
+                <>
+                  <div className="mb-3 rounded-[13px] bg-navy px-4 py-[15px] text-white">
+                    <div className="text-[17px] font-bold">{meta?.name || active}</div>
+                    {meta?.endInMind && (
+                      <div className="mt-0.5 text-[13px] italic text-[#cfdbe1]">{meta.endInMind}</div>
+                    )}
+                    <div className="mt-2 h-2.5 overflow-hidden rounded-md bg-white/20">
+                      <div className="bar-fill" style={{ width: `${c.pct}%` }} />
+                    </div>
+                    <div className="mt-2 text-xs text-[#cfdbe1]">
+                      {c.done} of {c.total} done &middot; {c.pct}% toward the End in Mind
+                    </div>
+                  </div>
+                  {areaProjects.length > 0 && (
+                    <div className="mb-2">
+                      <div className="mx-0.5 mb-2 text-[10.5px] font-bold uppercase tracking-[0.1em] text-navysoft">
+                        Projects
+                      </div>
+                      {areaProjects.map((p) => (
+                        <div
+                          key={p.id}
+                          className="mb-2 rounded-[11px] border border-line bg-paper px-[13px] py-[11px]"
+                        >
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-[13.5px] font-semibold text-navy">{p.name}</span>
+                            <span className="text-xs text-muted">
+                              {p.done}/{p.total}
+                            </span>
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-md bg-chip">
+                            <div className="bar-fill" style={{ width: `${p.pct}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                  <div className="mt-2 h-2.5 overflow-hidden rounded-md bg-white/20">
-                    <div className="bar-fill" style={{ width: `${c.pct}%` }} />
-                  </div>
-                  <div className="mt-2 text-xs text-[#cfdbe1]">
-                    {c.done} of {c.total} done &middot; {c.pct}% toward the End in Mind
-                  </div>
-                </div>
+                </>
               );
             })()
           )}
