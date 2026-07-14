@@ -1,0 +1,24 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# local env files — secrets never enter git
+.env
+.env.local
+.env*.local
+
+# local dev store (file-backed stand-in for Supabase during development)
+.dev-store.json
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+*.tsbuildinfo
+next-env.d.ts
+
+# netlify
+.netlify

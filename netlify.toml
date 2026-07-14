@@ -1,0 +1,10 @@
+# Conrad Daily Brief — Netlify configuration
+# Private deploy: turn on Site protection (password) in the Netlify UI
+# (Marshall step, see RUNBOOK.md). The app passphrase is the second gate.
+
+[build]
+  command = "npm run build:netlify"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

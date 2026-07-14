@@ -1,0 +1,33 @@
+{
+  "name": "conrad-daily-brief",
+  "version": "0.1.0",
+  "private": true,
+  "description": "One personal command surface for Brad Parker. Phone Daily Brief (Face A) + Conrad API contract (Face B). One shared list, one source of truth.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "build:netlify": "next build && node scripts/check-bundle.mjs",
+    "start": "next start",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "hash": "node scripts/hash-passphrase.mjs",
+    "conrad:test": "node scripts/conrad-test.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "bcryptjs": "^2.4.3",
+    "next": "^14.2.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.7.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.5.3"
+  }
+}

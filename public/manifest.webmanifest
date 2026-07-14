@@ -1,0 +1,23 @@
+{
+  "name": "Daily Brief",
+  "short_name": "Daily Brief",
+  "description": "Conrad · Chief of Staff — one place that holds all of it.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#E6E2D5",
+  "theme_color": "#003349",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
