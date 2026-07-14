@@ -176,7 +176,31 @@ optionally a project):
 { "areaId": "dash-farms", "projectId": "9a1a4d3c-…" }
 ```
 
-## 6. Health
+## 6. Compose Today's Plan (the morning sweep)
+
+The phone pins a "Today's Plan" section to the top of Brad's All view: every
+OPEN task whose `dueDate` is today or earlier, across all worlds. Conrad
+composes the day by stamping due dates during the morning sweep:
+
+`PATCH /api/tasks/:id`
+
+```json
+{ "dueDate": "2026-07-14" }
+```
+
+Remove something from the plan:
+
+```json
+{ "dueDate": null }
+```
+
+Rules of composition: pick a human-sized day (5 to 8 items) across worlds,
+weighted by End in Mind priorities, red flags, and the calendar. Unfinished
+picks carry over automatically the next day (the phone marks them
+"carried over"), so re-stamp or clear them deliberately rather than letting
+the pile grow. Never stamp `waiting` or `done` tasks.
+
+## 7. Health
 
 `GET /api/health` → `{ "status": "ok", "db": "ok" }`. If this fails, say so
 plainly and stop; do not report stale task state as current.

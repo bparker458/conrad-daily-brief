@@ -75,6 +75,33 @@ function shortDate(): string {
   return new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/** Local calendar date as YYYY-MM-DD (the phone's day, which is Brad's day). */
+function ymdToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
+/**
+ * Today's Plan membership: open, and due today or earlier. Items due
+ * earlier carry over automatically so an unfinished pick never silently
+ * disappears from the day. Conrad (or Supabase) stamps due dates; the
+ * phone never asks Brad to schedule anything.
+ */
+function isPlanned(t: ClientTask): boolean {
+  return t.status === "open" && !!t.dueDate && t.dueDate <= ymdToday();
+}
+
+/** Shared sort: red flag first, then sort order, then creation time. */
+function openComparator(a: ClientTask, b: ClientTask): number {
+  const ra = a.flag === "red" ? 0 : 1;
+  const rb = b.flag === "red" ? 0 : 1;
+  if (ra !== rb) return ra - rb;
+  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+  return a.createdAt.localeCompare(b.createdAt);
+}
+
 export default function Brief() {
   const [areas, setAreas] = useState<AreaProgress[]>([]);
   const [tasks, setTasks] = useState<ClientTask[]>([]);
@@ -156,7 +183,7 @@ export default function Brief() {
       .then(() => setLoaded(true))
       .catch(() => {
         setLoaded(true);
-        setLoadError("Couldn't reach the list. Showing nothing rather than something stale — pull to retry.");
+        setLoadError("Couldn't reach the list. Showing nothing rather than something stale.");
       });
     fetchExtras();
   }, [fetchAll, fetchExtras]);
@@ -363,16 +390,23 @@ export default function Brief() {
     [active]
   );
 
-  const openTasks = useMemo(() => {
-    const list = tasks.filter((t) => t.status === "open" && inView(t));
-    return list.sort((a, b) => {
-      const ra = a.flag === "red" ? 0 : 1;
-      const rb = b.flag === "red" ? 0 : 1;
-      if (ra !== rb) return ra - rb;
-      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-      return a.createdAt.localeCompare(b.createdAt);
-    });
-  }, [tasks, inView]);
+  const openTasks = useMemo(
+    () => tasks.filter((t) => t.status === "open" && inView(t)).sort(openComparator),
+    [tasks, inView]
+  );
+
+  /* Today's Plan: cross-world, composed by due dates (Conrad's morning
+     sweep stamps them). Shown in the All view; planned items move up
+     here instead of repeating in the general list. */
+  const planTasks = useMemo(
+    () => tasks.filter(isPlanned).sort(openComparator),
+    [tasks]
+  );
+
+  const listTasks = useMemo(
+    () => (active === "all" ? openTasks.filter((t) => !isPlanned(t)) : openTasks),
+    [openTasks, active]
+  );
 
   const waitingTasks = useMemo(
     () => tasks.filter((t) => t.status === "waiting" && inView(t)),
@@ -392,6 +426,158 @@ export default function Brief() {
 
   const areaName = (id: string | null) =>
     (id && areaMeta.get(id)?.name) || "Inbox";
+
+  /* One card renderer, used by Today's Plan and the general list —
+     same rows, same actions, one truth. */
+  const renderOpenCard = (t: ClientTask) => {
+    const red = t.flag === "red";
+    const carried = !!t.dueDate && t.dueDate < ymdToday();
+    return (
+      <div
+        key={t.id}
+        className={`mb-[9px] rounded-[11px] border border-line bg-paper px-3.5 py-[13px] ${
+          red ? "border-l-4 border-l-redflag" : ""
+        } ${t._pending ? "opacity-70" : ""}`}
+      >
+        <div className="flex items-start gap-3">
+          <button
+            aria-label="Mark done"
+            onClick={() => toggleDone(t)}
+            className="mt-0.5 flex h-[26px] w-[26px] flex-none items-center justify-center rounded-full border-2 border-navysoft bg-white text-[15px] text-white"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="text-[15.5px] font-semibold leading-[1.3] text-ink">
+              {t.title}
+            </div>
+            <div
+              className={`mt-1 text-[11px] uppercase tracking-[0.03em] ${
+                red ? "font-bold text-redflag" : "text-muted"
+              }`}
+            >
+              {areaName(t.areaId)}
+              {red && <> &middot; needs you now</>}
+              {!red && isPlanned(t) && (
+                carried ? (
+                  <span className="text-amber"> &middot; carried over</span>
+                ) : (
+                  <> &middot; today</>
+                )
+              )}
+              {t._pending && <span className="text-amber"> &middot; syncing</span>}
+            </div>
+
+            {t.unsure && (
+              <div className="mt-1.5 text-[12.5px] text-amber">
+                {t.conradNote ? (
+                  <>Conrad: {t.conradNote}</>
+                ) : (
+                  <>Flagged for Conrad.</>
+                )}
+              </div>
+            )}
+
+            {/* Actions */}
+            {!t._pending && (
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                {!t.unsure && (
+                  <button
+                    onClick={() => markUnsure(t)}
+                    className="text-[12.5px] text-navysoft underline"
+                  >
+                    I&apos;m not sure
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setOpenAction(
+                      openAction?.id === t.id && openAction.kind === "handoff"
+                        ? null
+                        : { id: t.id, kind: "handoff" }
+                    );
+                    setHandoffPick(HANDOFF_PEOPLE[0]);
+                    setHandoffOther("");
+                  }}
+                  className="text-[12.5px] text-navysoft underline"
+                >
+                  Hand off
+                </button>
+                <button
+                  onClick={() => {
+                    setOpenAction(
+                      openAction?.id === t.id && openAction.kind === "note"
+                        ? null
+                        : { id: t.id, kind: "note" }
+                    );
+                    setNoteText("");
+                  }}
+                  className="text-[12.5px] text-navysoft underline"
+                >
+                  Note
+                </button>
+              </div>
+            )}
+
+            {/* Inline hand-off */}
+            {openAction?.id === t.id && openAction.kind === "handoff" && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <select
+                  value={handoffPick}
+                  onChange={(e) => setHandoffPick(e.target.value)}
+                  className="rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink"
+                >
+                  {HANDOFF_PEOPLE.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                  <option value="__other__">Someone else&hellip;</option>
+                </select>
+                {handoffPick === "__other__" && (
+                  <input
+                    value={handoffOther}
+                    onChange={(e) => setHandoffOther(e.target.value)}
+                    placeholder="Name"
+                    className="w-28 rounded-lg border border-line bg-white px-2 py-2 text-sm"
+                  />
+                )}
+                <button
+                  onClick={() => confirmHandoff(t)}
+                  className="rounded-lg bg-navy px-3 py-2 text-sm font-semibold text-white"
+                >
+                  Hand off
+                </button>
+              </div>
+            )}
+
+            {/* Inline note */}
+            {openAction?.id === t.id && openAction.kind === "note" && (
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && confirmNote(t)}
+                  placeholder="Add a note&hellip;"
+                  className="flex-1 rounded-lg border border-line bg-white px-2 py-2 text-sm"
+                />
+                <button
+                  onClick={() => confirmNote(t)}
+                  className="rounded-lg bg-navy px-3 py-2 text-sm font-semibold text-white"
+                >
+                  Save
+                </button>
+              </div>
+            )}
+
+            {t.note && (
+              <div className="mt-1.5 whitespace-pre-line text-[12px] leading-snug text-muted">
+                {t.note}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   /* ── render ───────────────────────────────────────────────────── */
 
@@ -461,6 +647,16 @@ export default function Brief() {
 
       {loaded && !loadError && (
         <>
+          {/* Today's Plan — the composed day, cross-world, due-date driven */}
+          {active === "all" && planTasks.length > 0 && (
+            <div className="mb-2">
+              <div className="mx-0.5 mb-2 mt-2 text-[10.5px] font-bold uppercase tracking-[0.1em] text-navysoft">
+                Today&apos;s Plan
+              </div>
+              {planTasks.map(renderOpenCard)}
+            </div>
+          )}
+
           {/* Today (Google Calendar, read-only) — All view only */}
           {active === "all" && today && (
             <>
@@ -472,7 +668,7 @@ export default function Brief() {
               {today.available && (
                 <div className="mb-2">
                   <div className="mx-0.5 mb-2 mt-2 text-[10.5px] font-bold uppercase tracking-[0.1em] text-navysoft">
-                    Today
+                    On the calendar
                   </div>
                   {today.data.length === 0 ? (
                     <div className="rounded-[11px] border border-line bg-paper px-[13px] py-[11px] text-[13px] italic text-muted">
@@ -607,154 +803,14 @@ export default function Brief() {
             })()
           )}
 
-          {/* Open tasks */}
+          {/* Open tasks (planned items live in Today's Plan in the All view) */}
           <div>
-            {openTasks.length === 0 && (
+            {listTasks.length === 0 && (active !== "all" || planTasks.length === 0) && (
               <div className="px-0.5 py-3 text-sm italic text-muted">
                 Nothing open here. Tap + to capture something.
               </div>
             )}
-            {openTasks.map((t) => {
-              const red = t.flag === "red";
-              return (
-                <div
-                  key={t.id}
-                  className={`mb-[9px] rounded-[11px] border border-line bg-paper px-3.5 py-[13px] ${
-                    red ? "border-l-4 border-l-redflag" : ""
-                  } ${t._pending ? "opacity-70" : ""}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <button
-                      aria-label="Mark done"
-                      onClick={() => toggleDone(t)}
-                      className="mt-0.5 flex h-[26px] w-[26px] flex-none items-center justify-center rounded-full border-2 border-navysoft bg-white text-[15px] text-white"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[15.5px] font-semibold leading-[1.3] text-ink">
-                        {t.title}
-                      </div>
-                      <div
-                        className={`mt-1 text-[11px] uppercase tracking-[0.03em] ${
-                          red ? "font-bold text-redflag" : "text-muted"
-                        }`}
-                      >
-                        {areaName(t.areaId)}
-                        {red && <> &middot; needs you now</>}
-                        {t._pending && <span className="text-amber"> &middot; syncing</span>}
-                      </div>
-
-                      {t.unsure && (
-                        <div className="mt-1.5 text-[12.5px] text-amber">
-                          {t.conradNote ? (
-                            <>Conrad: {t.conradNote}</>
-                          ) : (
-                            <>Flagged for Conrad.</>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Actions */}
-                      {!t._pending && (
-                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                          {!t.unsure && (
-                            <button
-                              onClick={() => markUnsure(t)}
-                              className="text-[12.5px] text-navysoft underline"
-                            >
-                              I&apos;m not sure
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              setOpenAction(
-                                openAction?.id === t.id && openAction.kind === "handoff"
-                                  ? null
-                                  : { id: t.id, kind: "handoff" }
-                              );
-                              setHandoffPick(HANDOFF_PEOPLE[0]);
-                              setHandoffOther("");
-                            }}
-                            className="text-[12.5px] text-navysoft underline"
-                          >
-                            Hand off
-                          </button>
-                          <button
-                            onClick={() => {
-                              setOpenAction(
-                                openAction?.id === t.id && openAction.kind === "note"
-                                  ? null
-                                  : { id: t.id, kind: "note" }
-                              );
-                              setNoteText("");
-                            }}
-                            className="text-[12.5px] text-navysoft underline"
-                          >
-                            Note
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Inline hand-off */}
-                      {openAction?.id === t.id && openAction.kind === "handoff" && (
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <select
-                            value={handoffPick}
-                            onChange={(e) => setHandoffPick(e.target.value)}
-                            className="rounded-lg border border-line bg-white px-2 py-2 text-sm text-ink"
-                          >
-                            {HANDOFF_PEOPLE.map((p) => (
-                              <option key={p} value={p}>
-                                {p}
-                              </option>
-                            ))}
-                            <option value="__other__">Someone else&hellip;</option>
-                          </select>
-                          {handoffPick === "__other__" && (
-                            <input
-                              value={handoffOther}
-                              onChange={(e) => setHandoffOther(e.target.value)}
-                              placeholder="Name"
-                              className="w-28 rounded-lg border border-line bg-white px-2 py-2 text-sm"
-                            />
-                          )}
-                          <button
-                            onClick={() => confirmHandoff(t)}
-                            className="rounded-lg bg-navy px-3 py-2 text-sm font-semibold text-white"
-                          >
-                            Hand off
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Inline note */}
-                      {openAction?.id === t.id && openAction.kind === "note" && (
-                        <div className="mt-2 flex items-center gap-2">
-                          <input
-                            value={noteText}
-                            onChange={(e) => setNoteText(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && confirmNote(t)}
-                            placeholder="Add a note&hellip;"
-                            className="flex-1 rounded-lg border border-line bg-white px-2 py-2 text-sm"
-                          />
-                          <button
-                            onClick={() => confirmNote(t)}
-                            className="rounded-lg bg-navy px-3 py-2 text-sm font-semibold text-white"
-                          >
-                            Save
-                          </button>
-                        </div>
-                      )}
-
-                      {t.note && (
-                        <div className="mt-1.5 whitespace-pre-line text-[12px] leading-snug text-muted">
-                          {t.note}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {listTasks.map(renderOpenCard)}
           </div>
 
           {/* Waiting on others */}
@@ -778,7 +834,7 @@ export default function Brief() {
                       href={`mailto:?subject=${encodeURIComponent(
                         `Nudge: ${t.title}`
                       )}&body=${encodeURIComponent(
-                        `Quick nudge on "${t.title}" — any update?\n\n(from Brad's Daily Brief)`
+                        `Quick nudge on "${t.title}". Any update?\n\n(from Brad's Daily Brief)`
                       )}`}
                     >
                       Nudge {t.delegatedTo || ""}

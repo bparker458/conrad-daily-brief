@@ -134,6 +134,18 @@ let taskId = null;
     answered.conradNote === "Suggested next step from Conrad."
   );
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const dated = await (
+    await conrad(`/api/tasks/${answered.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ dueDate: todayStr }),
+    })
+  ).json();
+  check(
+    `due date stamps for Today's Plan (${dated.dueDate})`,
+    dated.dueDate === todayStr
+  );
+
   // tidy: close the sort-test task
   await conrad(`/api/tasks/${answered.id}`, {
     method: "PATCH",

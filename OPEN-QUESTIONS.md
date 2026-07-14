@@ -53,6 +53,12 @@ Open questions are for Marshall; none block deploy.
   (12s interval + on reconnect); "Saved ✓" only fires on confirmed server
   writes. Actions on a not-yet-synced capture are disabled until it syncs —
   simplest safe behavior; richer queueing is Phase 4.
+- **Today's Plan (added 7/13 post-launch, Marshall's call).** Open tasks with
+  `due_date` on or before today pin to a cross-world "Today's Plan" section at
+  the top of the All view; earlier-dated unfinished items read "carried over."
+  Composition is Conrad's job via PATCH `dueDate` (contract section 6) or
+  Supabase's table editor until he's wired. Deliberately NO date picker in the
+  capture sheet: capture stays frictionless, scheduling stays with Conrad.
 - **bcrypt over argon2.** bcryptjs is dependency-free and serverless-safe;
   fine for a passphrase behind two other gates.
 - **Git author.** Commits are authored "Lenny (AuthenticUS build agent)
