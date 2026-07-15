@@ -21,6 +21,8 @@ const NEEDLE_NAMES = [
   "CONRAD_API_SECRET",
   "SESSION_SECRET",
   "APP_PASSPHRASE_HASH",
+  "ANTHROPIC_API_KEY",
+  "sk-ant-", // Anthropic key prefix — belt and suspenders
 ];
 
 const NEEDLE_VALUES = [
@@ -28,6 +30,7 @@ const NEEDLE_VALUES = [
   process.env.CONRAD_API_SECRET,
   process.env.SESSION_SECRET,
   process.env.APP_PASSPHRASE_HASH,
+  process.env.ANTHROPIC_API_KEY,
 ].filter((v) => typeof v === "string" && v.length >= 12);
 
 function* walk(dir) {

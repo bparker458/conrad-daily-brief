@@ -121,6 +121,10 @@ export default function Brief() {
   const [today, setToday] = useState<GoogleSection<TodayEvent>>(null);
   const [mail, setMail] = useState<GoogleSection<MailItem>>(null);
   const [projects, setProjects] = useState<ProjectProgress[]>([]);
+  /* "I'm not sure" → Conrad's steps: per-task in-flight + collapse state.
+     View state only — the steps themselves live in conrad_note rows. */
+  const [thinkingIds, setThinkingIds] = useState<Record<string, boolean>>({});
+  const [hiddenSteps, setHiddenSteps] = useState<Record<string, boolean>>({});
 
   const queueRef = useRef<QueueItem[]>([]);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -286,10 +290,44 @@ export default function Brief() {
     void sendPatch(t.id, { status: makingDone ? "done" : "open" });
   }
 
-  function markUnsure(t: ClientTask) {
-    if (t._pending || t.unsure) return;
+  /**
+   * "I'm not sure" → flag it AND ask Conrad for the next steps in one tap.
+   * The server writes unsure=true before it ever talks to the model, so a
+   * failed or slow suggestion still leaves the task durably flagged. If
+   * the network itself is down, the flag write rides the retry queue and
+   * "Ask Conrad again" remains available for the steps.
+   */
+  async function askConrad(t: ClientTask) {
+    if (t._pending || thinkingIds[t.id]) return;
     setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...x, unsure: true } : x)));
-    void sendPatch(t.id, { unsure: true });
+    setThinkingIds((m) => ({ ...m, [t.id]: true }));
+    try {
+      const res = await fetch(`/api/tasks/${t.id}/suggest`, { method: "POST" });
+      if (res.status === 401) {
+        window.location.reload();
+        return;
+      }
+      if (!res.ok) throw new Error(String(res.status));
+      const d: { task?: Task; suggested?: boolean } = await res.json();
+      if (d.task) {
+        const real = d.task;
+        setTasks((ts) => ts.map((x) => (x.id === t.id ? { ...real } : x)));
+      }
+      flashSaved();
+    } catch {
+      enqueue({
+        kind: "patch",
+        url: `/api/tasks/${t.id}`,
+        method: "PATCH",
+        body: { unsure: true },
+      });
+    } finally {
+      setThinkingIds((m) => {
+        const n = { ...m };
+        delete n[t.id];
+        return n;
+      });
+    }
   }
 
   function confirmHandoff(t: ClientTask) {
@@ -467,11 +505,42 @@ export default function Brief() {
             </div>
 
             {t.unsure && (
-              <div className="mt-1.5 text-[12.5px] text-amber">
-                {t.conradNote ? (
-                  <>Conrad: {t.conradNote}</>
+              <div className="mt-1.5">
+                {thinkingIds[t.id] ? (
+                  <div className="animate-pulse text-[12.5px] italic text-navysoft">
+                    Conrad is thinking&hellip;
+                  </div>
+                ) : t.conradNote ? (
+                  <div className="mt-1 rounded-[9px] border border-line border-l-[3px] border-l-navysoft bg-white px-3 py-2">
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-navysoft">
+                        Conrad suggests
+                      </span>
+                      <button
+                        onClick={() =>
+                          setHiddenSteps((m) => ({ ...m, [t.id]: !m[t.id] }))
+                        }
+                        className="text-[11px] text-muted underline"
+                      >
+                        {hiddenSteps[t.id] ? "show" : "hide"}
+                      </button>
+                    </div>
+                    {!hiddenSteps[t.id] && (
+                      <div className="mt-1 whitespace-pre-line text-[13px] leading-[1.45] text-ink">
+                        {t.conradNote}
+                      </div>
+                    )}
+                  </div>
                 ) : (
-                  <>Flagged for Conrad.</>
+                  <div className="text-[12.5px] text-amber">
+                    Flagged for Conrad.{" "}
+                    <button
+                      onClick={() => void askConrad(t)}
+                      className="underline"
+                    >
+                      Ask Conrad again
+                    </button>
+                  </div>
                 )}
               </div>
             )}
@@ -481,7 +550,7 @@ export default function Brief() {
               <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                 {!t.unsure && (
                   <button
-                    onClick={() => markUnsure(t)}
+                    onClick={() => void askConrad(t)}
                     className="text-[12.5px] text-navysoft underline"
                   >
                     I&apos;m not sure

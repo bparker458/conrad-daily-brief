@@ -169,3 +169,25 @@ New passphrase: `npm run hash`, update `APP_PASSPHRASE_HASH` in Netlify,
 redeploy. New Conrad secret: `openssl rand -hex 32`, update Netlify AND
 Brad's credentials file. Session cookies die on their own when
 `SESSION_SECRET` changes.
+
+## 9. Conrad's step-writer (the "I'm not sure" brain)
+
+One env var turns it on. Without it the button still works — it flags the
+task for Conrad and says so honestly. With it, Brad gets numbered next
+steps on the card in a few seconds.
+
+1. Get an Anthropic API key (console.anthropic.com → API Keys). Marshall's
+   key is fine to start; swap in Brad's later — nothing else changes.
+2. Netlify → Site configuration → Environment variables → add
+   `ANTHROPIC_API_KEY`. Paste the key value directly into the Netlify form.
+   Do NOT paste the key into chat, a text, or a shared doc.
+3. Trigger a redeploy (Deploys → Trigger deploy → Deploy site).
+4. Prove it on the phone: open a farm task ("Spray and prune the peach
+   trees"), tap "I'm not sure" → "Conrad is thinking…" → numbered steps
+   appear and SURVIVE a hard reload (they live in `conrad_note`, same rows
+   as everything else).
+5. Optional: `CONRAD_SUGGEST_MODEL` env var overrides the default model
+   (`claude-sonnet-5`). Leave it unset unless you have a reason.
+
+Cost note: single user, a few dozen taps a month — pennies. No usage cap
+needed at this scale.

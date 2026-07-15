@@ -29,10 +29,14 @@ Conrad. No Supabase key ever ships to the browser (enforced at build time by
 
 ```
 app/api/…            the single door to the store (session, areas, tasks,
-                     tasks/[id], progress, health, google/today, google/inbox)
+                     tasks/[id], tasks/[id]/suggest, progress, health,
+                     google/today, google/inbox)
 components/          Brief (the phone face), Gate (passphrase)
 lib/                 store selector, Supabase store, local dev store, auth,
-                     derive (progress + sort), google (Phase 3, read-only)
+                     derive (progress + sort), google (Phase 3, read-only),
+                     suggest (Conrad's step-writer: "I'm not sure" → Claude
+                     → numbered steps in conrad_note; needs ANTHROPIC_API_KEY,
+                     degrades to flag-only without it)
 supabase/            schema.sql + seed.sql (run once in the SQL editor)
 scripts/             verify-phase1.sh, conrad-test.mjs, google-parse-test.mjs,
                      check-bundle.mjs, hash-passphrase.mjs,

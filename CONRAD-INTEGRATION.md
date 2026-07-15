@@ -205,6 +205,30 @@ the pile grow. Never stamp `waiting` or `done` tasks.
 `GET /api/health` → `{ "status": "ok", "db": "ok" }`. If this fails, say so
 plainly and stop; do not report stale task state as current.
 
+## 8. Suggested next steps (`conrad_note` is a shared field)
+
+When Brad taps "I'm not sure" on the phone, the server writes
+`unsure=true` and (when `ANTHROPIC_API_KEY` is configured) generates
+numbered next steps into `conrad_note` via `POST /api/tasks/:id/suggest`.
+The phone renders whatever is in `conrad_note` under "Conrad suggests".
+
+What this means for Conrad (Face B):
+
+- **Sweep the flags.** `GET /api/tasks?area=all` → items with
+  `unsure: true` and an empty `conradNote` are Brad saying "I don't know
+  what to do here" — priority conversation material for the morning brief.
+- **Write better steps any time.** `PATCH /api/tasks/:id` with
+  `{ "conradNote": "1. …\n2. …" }` replaces the generated steps with
+  Conrad's own (Conrad knows more context than the one-shot generator).
+  The phone shows the new text on next load. Same field, either author —
+  there is never a second copy of the suggestion.
+- **Or trigger generation.** `POST /api/tasks/:id/suggest` with the bearer
+  secret works for Conrad too. Response:
+  `{ task, suggested: true }` or `{ task, suggested: false, reason }` —
+  `suggested: false` still means the unsure flag is set.
+- **Clearing.** When Brad and Conrad resolve an item, PATCH
+  `{ "unsure": false, "conradNote": "" }` so the card returns to normal.
+
 ---
 
 ## Rules that keep the two faces honest

@@ -63,3 +63,21 @@ Open questions are for Marshall; none block deploy.
   fine for a passphrase behind two other gates.
 - **Git author.** Commits are authored "Lenny (AuthenticUS build agent)
   <msnider@authenticus.us>" so history lands under Marshall's identity.
+
+## Step-writer judgment calls (2026-07-15, "I'm not sure" upgrade)
+
+- **Default model `claude-sonnet-5`**, overridable via `CONRAD_SUGGEST_MODEL`.
+  Chosen for step quality on farm/property/finance tasks; single-user cost
+  is negligible either way.
+- **8-second generation timeout.** Netlify route handlers get ~10s; the
+  flag write happens BEFORE the model call, so a timeout degrades to
+  exactly the old behavior ("Flagged for Conrad" + an "Ask Conrad again"
+  link). Nothing is lost, nothing blocks.
+- **Steps live in `conrad_note`** — the field Conrad (Face B) already owns
+  via PATCH. Conrad can overwrite the generated steps with better ones;
+  the phone renders whichever text is current. One field, one truth.
+- **No regenerate-on-every-tap.** "I'm not sure" appears once per task;
+  "Ask Conrad again" appears only when no steps arrived. Brad never sits
+  watching a spinner for steps he already has.
+- **"Add these steps as tasks" deliberately deferred** — candidate fast
+  follow once Brad has reacted to the inline version.
