@@ -25,6 +25,20 @@ type GoogleSection<T> =
   | { available: false; reason: string }
   | null;
 
+/* La-Z-Boy daily numbers response shape — defined locally for the same
+   reason as the Google shapes: the client never imports a server module.
+   Matches the /api/numbers payload (lib/numbers.ts). */
+interface DailyNumbers {
+  written: number;
+  toGoalPct: number;
+  toAdjustedGoalPct: number;
+  toLastYearPct: number;
+  resultsThrough: string;
+  latestRecapLanded: boolean;
+  source: string;
+  updatedAt: string;
+}
+
 /* ────────────────────────────────────────────────────────────────────
    The phone face. Renders ONLY from the same task rows the checkboxes
    write to (Prime Directive). All reads and writes go through /api/*.
@@ -102,6 +116,14 @@ function openComparator(a: ClientTask, b: ClientTask): number {
   return a.createdAt.localeCompare(b.createdAt);
 }
 
+/** Color band for a "% to goal" number, matching the artifact's read:
+    at or above target is green, close is amber, soft is red. */
+function numBand(pct: number): string {
+  if (pct >= 100) return "text-grn";
+  if (pct >= 85) return "text-amber";
+  return "text-redflag";
+}
+
 export default function Brief() {
   const [areas, setAreas] = useState<AreaProgress[]>([]);
   const [tasks, setTasks] = useState<ClientTask[]>([]);
@@ -121,6 +143,7 @@ export default function Brief() {
   const [today, setToday] = useState<GoogleSection<TodayEvent>>(null);
   const [mail, setMail] = useState<GoogleSection<MailItem>>(null);
   const [projects, setProjects] = useState<ProjectProgress[]>([]);
+  const [numbers, setNumbers] = useState<DailyNumbers | null>(null);
   /* "I'm not sure" → Conrad's steps: per-task in-flight + collapse state.
      View state only — the steps themselves live in conrad_note rows. */
   const [thinkingIds, setThinkingIds] = useState<Record<string, boolean>>({});
@@ -177,6 +200,12 @@ export default function Brief() {
       if (r.ok) setProjects((await r.json()).projects || []);
     } catch {
       /* project rollups are cosmetic; area bars still render from tasks */
+    }
+    try {
+      const r = await fetch("/api/numbers", { cache: "no-store" });
+      if (r.ok) setNumbers(await r.json());
+    } catch {
+      /* the numbers card is cosmetic; the task list still stands */
     }
   }, []);
 
@@ -716,6 +745,47 @@ export default function Brief() {
 
       {loaded && !loadError && (
         <>
+          {/* La-Z-Boy numbers (read-only) — All view only. Mirrors the
+              "Daily Numbers" block in Conrad's morning artifact. */}
+          {active === "all" && numbers && (
+            <div className="mb-2">
+              <div className="mx-0.5 mb-2 mt-2 text-[10.5px] font-bold uppercase tracking-[0.1em] text-navysoft">
+                La-Z-Boy numbers
+              </div>
+              <div className="rounded-[11px] border border-line bg-paper px-[13px] py-[12px]">
+                <div className="text-[12.5px] leading-[1.5] text-ink">
+                  {numbers.latestRecapLanded ? (
+                    <>Results through {numbers.resultsThrough}.</>
+                  ) : (
+                    <>
+                      Newest recap hasn&apos;t landed yet. Latest on file, results
+                      through {numbers.resultsThrough}.
+                    </>
+                  )}
+                </div>
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  {[
+                    { label: "Written", value: `$${numbers.written.toLocaleString()}`, cls: "text-navy" },
+                    { label: "To goal", value: `${numbers.toGoalPct.toFixed(1)}%`, cls: numBand(numbers.toGoalPct) },
+                    { label: "To adj. goal", value: `${numbers.toAdjustedGoalPct.toFixed(1)}%`, cls: numBand(numbers.toAdjustedGoalPct) },
+                    { label: "To last year", value: `${numbers.toLastYearPct.toFixed(1)}%`, cls: numBand(numbers.toLastYearPct) },
+                  ].map((n) => (
+                    <div
+                      key={n.label}
+                      className="min-w-[72px] flex-1 rounded-[9px] border border-line bg-white px-2.5 py-2"
+                    >
+                      <div className="text-[10px] uppercase tracking-[0.05em] text-muted">
+                        {n.label}
+                      </div>
+                      <div className={`mt-0.5 text-[17px] font-bold ${n.cls}`}>{n.value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 text-[11px] text-muted">{numbers.source}</div>
+              </div>
+            </div>
+          )}
+
           {/* Today's Plan — the composed day, cross-world, due-date driven */}
           {active === "all" && planTasks.length > 0 && (
             <div className="mb-2">
