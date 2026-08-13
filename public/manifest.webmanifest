@@ -1,6 +1,6 @@
 {
-  "name": "Daily Brief",
-  "short_name": "Daily Brief",
+  "name": "Command Dashboard",
+  "short_name": "Dashboard",
   "description": "Conrad · Chief of Staff — one place that holds all of it.",
   "start_url": "/",
   "display": "standalone",

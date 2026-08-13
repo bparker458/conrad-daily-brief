@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 /**
- * Build-time security check (Section 7 of the handoff):
- * fail the build if anything secret-shaped leaks into the CLIENT bundle.
+ * Build-time security check: fail the build if anything secret-shaped
+ * leaks into the CLIENT bundle.
  *
  * Scans .next/static (the only code shipped to browsers) for:
- *  - the literal strings SUPABASE_SERVICE_ROLE_KEY / service_role /
- *    CONRAD_API_SECRET / SESSION_SECRET / APP_PASSPHRASE_HASH
+ *  - the literal secret env var names
  *  - the actual VALUES of those env vars, when set
  *
  * Server bundles (.next/server) legitimately contain them — not scanned.
@@ -23,6 +22,10 @@ const NEEDLE_NAMES = [
   "APP_PASSPHRASE_HASH",
   "ANTHROPIC_API_KEY",
   "sk-ant-", // Anthropic key prefix — belt and suspenders
+  "GOOGLE_CLIENT_SECRET",
+  "GOOGLE_REFRESH_TOKEN",
+  "MS_CLIENT_SECRET",
+  "MS_REFRESH_TOKEN",
 ];
 
 const NEEDLE_VALUES = [
@@ -31,6 +34,10 @@ const NEEDLE_VALUES = [
   process.env.SESSION_SECRET,
   process.env.APP_PASSPHRASE_HASH,
   process.env.ANTHROPIC_API_KEY,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.GOOGLE_REFRESH_TOKEN,
+  process.env.MS_CLIENT_SECRET,
+  process.env.MS_REFRESH_TOKEN,
 ].filter((v) => typeof v === "string" && v.length >= 12);
 
 function* walk(dir) {
