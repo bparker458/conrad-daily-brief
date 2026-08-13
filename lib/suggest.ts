@@ -6,12 +6,10 @@ import type { Area, Task } from "./types";
  * When Brad taps "I'm not sure" on a task, this asks Claude for the next
  * concrete steps and the API layer stores them in conrad_note — the SAME
  * field Conrad (Face B) writes through PATCH. One field, two suggestion
- * paths, no second copy of the truth (Prime Directive).
+ * paths, no second copy of the truth.
  *
  * The key lives in ANTHROPIC_API_KEY on the server only. It is never sent
  * to the browser; scripts/check-bundle.mjs fails the build if it leaks.
- * Marshall's key today, Brad's key later — swap the Netlify env var,
- * nothing else changes.
  */
 
 const API_URL = "https://api.anthropic.com/v1/messages";
@@ -62,6 +60,7 @@ function userPrompt(task: Task, area: Area | null): string {
     `World: ${area ? area.name : "Inbox (not yet sorted)"}`,
   ];
   if (area?.endInMind) lines.push(`End in mind for this world: ${area.endInMind}`);
+  if (task.sourceRef) lines.push(`Where it came from: ${task.sourceRef}`);
   if (task.note) lines.push(`Brad's notes on it so far:\n${task.note}`);
   lines.push(`Today's date: ${new Date().toISOString().slice(0, 10)}`);
   return lines.join("\n");
