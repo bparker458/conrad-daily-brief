@@ -2,8 +2,7 @@ import type { Area, Task, TaskFlag } from "./types";
 
 /**
  * Mirror of supabase/seed.sql for the local dev store only.
- * Production seed lives in SQL; do not extend this list (Section 10:
- * "Do not invent more").
+ * Production seed lives in SQL.
  */
 export const SEED_AREAS: Area[] = [
   { id: "inbox", name: "Inbox", endInMind: "Unsorted, Conrad files these", sortOrder: 0 },
@@ -15,7 +14,11 @@ export const SEED_AREAS: Area[] = [
   { id: "personal", name: "Personal", endInMind: "Room to enjoy the life you built", sortOrder: 6 },
 ];
 
-const seedTask = (areaId: string, title: string, flag: TaskFlag): Omit<Task, "id" | "createdAt"> => ({
+const seedTask = (
+  areaId: string,
+  title: string,
+  flag: TaskFlag
+): Omit<Task, "id" | "createdAt"> => ({
   areaId,
   projectId: null,
   title,
@@ -27,6 +30,8 @@ const seedTask = (areaId: string, title: string, flag: TaskFlag): Omit<Task, "id
   unsure: false,
   conradNote: "",
   source: "seed",
+  sourceRef: "",
+  originSignalId: null,
   doneAt: null,
   sortOrder: 0,
 });

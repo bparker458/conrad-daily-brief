@@ -1,12 +1,28 @@
-/* Conrad Daily Brief — service worker.
-   Offline-tolerant READ cache only:
-   - shell + static assets: cache-first
-   - /api/tasks, /api/areas, /api/progress GETs: network-first, cached copy as fallback
-   - writes (POST/PATCH) are NEVER cached or faked here; the app queues and
-     retries them itself, and "Saved" only fires on a confirmed server write. */
+/* Conrad Command Dashboard — service worker.
 
-const VERSION = "cb-v1";
-const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-180.png"];
+   Offline tolerant READ cache only:
+   - shell + static assets: cache-first
+   - /api/dashboard, /api/tasks, /api/areas, /api/progress GETs:
+     network-first, cached copy as a LABELLED fallback
+   - writes (POST/PATCH) are NEVER cached or faked here; the app queues
+     and retries them itself, and "Saved" only fires on a confirmed
+     server write.
+
+   The important rule: when this worker serves a cached copy because the
+   network failed, it stamps the response with `x-from-cache: 1`. The
+   dashboard reads that header and puts an "offline copy" banner at the
+   top with the age of the data. A silent stale render is exactly the
+   failure this app exists to stop, and it would otherwise happen right
+   here, where the app cannot see it. */
+
+const VERSION = "cb-v2";
+const SHELL = [
+  "/",
+  "/manifest.webmanifest",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/icons/icon-180.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -23,7 +39,16 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-const CACHEABLE_API = /^\/api\/(tasks|areas|progress)(\?|$)/;
+const CACHEABLE_API = /^\/api\/(dashboard|tasks|areas|progress)(\?|$)/;
+
+/** Re-wrap a cached response so the app can tell it is not live. */
+async function labelled(res) {
+  if (!res) return undefined;
+  const body = await res.blob();
+  const headers = new Headers(res.headers);
+  headers.set("x-from-cache", "1");
+  return new Response(body, { status: res.status, statusText: res.statusText, headers });
+}
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
@@ -34,8 +59,7 @@ self.addEventListener("fetch", (event) => {
   // Session endpoint is never cached.
   if (url.pathname.startsWith("/api/session")) return;
 
-  // Read APIs: network-first with cache fallback so a brief network drop
-  // still shows the last-loaded list.
+  // Read APIs: network-first, labelled cache fallback.
   if (CACHEABLE_API.test(url.pathname + url.search)) {
     event.respondWith(
       fetch(req)
@@ -46,12 +70,14 @@ self.addEventListener("fetch", (event) => {
           }
           return res;
         })
-        .catch(() => caches.match(req))
+        .catch(() => caches.match(req).then(labelled))
     );
     return;
   }
 
-  // Other API GETs (health, google): network only.
+  // Other API GETs (health, mail, calendar, signals, events): network only.
+  // These must never come from a cache — a stale connector read is worse
+  // than an honest failure.
   if (url.pathname.startsWith("/api/")) return;
 
   // Navigations: network-first, fall back to cached shell.
@@ -74,7 +100,10 @@ self.addEventListener("fetch", (event) => {
       (hit) =>
         hit ||
         fetch(req).then((res) => {
-          if (res.ok && (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/"))) {
+          if (
+            res.ok &&
+            (url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/icons/"))
+          ) {
             const copy = res.clone();
             caches.open(VERSION).then((c) => c.put(req, copy));
           }

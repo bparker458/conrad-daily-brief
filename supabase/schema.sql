@@ -1,5 +1,6 @@
--- Conrad Daily Brief — schema (Section 5 of the build handoff, verbatim)
--- Run this once in the Supabase SQL editor, then run seed.sql.
+-- Conrad Command Dashboard — base schema.
+-- Run this once in the Supabase SQL editor, then seed.sql, then every
+-- file in migrations/ in order.
 
 create type task_status as enum ('open','done','waiting');
 create type task_flag   as enum ('none','amber','red');
@@ -8,7 +9,7 @@ create type task_source as enum ('phone','conrad','voice','seed');
 create table areas (
   id          text primary key,          -- e.g. 'dash-farms'
   name        text not null,             -- 'Dash Farms'
-  end_in_mind text default '',           -- the vision; Marshall fills later
+  end_in_mind text default '',           -- the vision
   sort_order  int  default 0
 );
 

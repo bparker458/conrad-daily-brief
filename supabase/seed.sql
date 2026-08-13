@@ -1,5 +1,5 @@
--- Conrad Daily Brief — seed data (Section 10 of the build handoff, verbatim)
--- End-in-Mind text is placeholder; Marshall replaces it in the vision sessions.
+-- Conrad Command Dashboard — seed data.
+-- End-in-Mind text is placeholder; the vision sessions replace it.
 
 insert into areas (id, name, end_in_mind, sort_order) values
  ('inbox',      'Inbox',       'Unsorted, Conrad files these', 0),
@@ -8,7 +8,8 @@ insert into areas (id, name, end_in_mind, sort_order) values
  ('trakwell',   'Trakwell',    'Its own company one day', 3),
  ('estate',     'Estate',      'The place, restored and lived in', 4),
  ('properties', 'Properties',  'Cash flow steady, refis handled', 5),
- ('personal',   'Personal',    'Room to enjoy the life you built', 6);
+ ('personal',   'Personal',    'Room to enjoy the life you built', 6)
+on conflict (id) do nothing;
 
 insert into tasks (area_id, title, flag, source) values
  ('estate','Bind the insurance policies','none','seed'),

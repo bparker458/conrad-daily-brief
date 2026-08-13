@@ -2,15 +2,20 @@
   "name": "conrad-daily-brief",
   "version": "0.1.0",
   "private": true,
-  "description": "One personal command surface for Brad Parker. Phone Daily Brief (Face A) + Conrad API contract (Face B). One shared list, one source of truth.",
+  "description": "Brad Parker's command dashboard. Phone dashboard (Face A) + Conrad API contract (Face B). One shared list, one source of truth, every panel live or honestly marked.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "build:netlify": "next build && node scripts/check-bundle.mjs",
     "start": "next start",
+    "typecheck": "tsc --noEmit",
     "check:bundle": "node scripts/check-bundle.mjs",
     "hash": "node scripts/hash-passphrase.mjs",
-    "conrad:test": "node scripts/conrad-test.mjs"
+    "conrad:test": "node scripts/conrad-test.mjs",
+    "dashboard:test": "node scripts/dashboard-test.mjs",
+    "parse:test": "node scripts/source-parse-test.mjs",
+    "ms:token": "node scripts/ms-refresh-token.mjs",
+    "google:token": "node scripts/google-refresh-token.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

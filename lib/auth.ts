@@ -41,8 +41,8 @@ export function verifySessionToken(token: string | undefined): boolean {
 export type Caller = "session" | "conrad";
 
 /**
- * Both faces come through here (Section 6): the phone via the session
- * cookie, Conrad via `Authorization: Bearer <CONRAD_API_SECRET>`.
+ * Both faces come through here: the phone via the session cookie,
+ * Conrad via `Authorization: Bearer <CONRAD_API_SECRET>`.
  */
 export function authenticate(req: NextRequest): Caller | null {
   const authz = req.headers.get("authorization") || "";
@@ -57,11 +57,16 @@ export function authenticate(req: NextRequest): Caller | null {
   return null;
 }
 
+/** The actor label written into the event log for this caller. */
+export function actorOf(caller: Caller): "phone" | "conrad" {
+  return caller === "conrad" ? "conrad" : "phone";
+}
+
 export function unauthorized(): NextResponse {
   return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 }
 
-/** Standard error body per Section 6: `{ error: string }` with a real status. */
+/** Standard error body: `{ error: string }` with a real status. */
 export function apiError(message: string, status: number): NextResponse {
   return NextResponse.json({ error: message }, { status });
 }

@@ -29,7 +29,7 @@ const config: Config = {
           "sans-serif",
         ],
       },
-      maxWidth: { brief: "620px" },
+      maxWidth: { brief: "620px", dash: "760px" },
     },
   },
   plugins: [],
