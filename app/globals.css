@@ -34,7 +34,7 @@ body {
   padding-bottom: 120px;
 }
 
-/* Hide horizontal scrollbars on the chip row */
+/* Hide horizontal scrollbars on the chip rows */
 .no-scrollbar {
   scrollbar-width: none;
 }
@@ -48,4 +48,14 @@ body {
   background: var(--grn);
   border-radius: 6px;
   transition: width 0.4s ease;
+}
+
+/* Smooth scroll for the quick-nav chips */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Section anchors clear the sticky header */
+.anchor {
+  scroll-margin-top: 96px;
 }
