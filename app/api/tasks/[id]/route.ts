@@ -12,13 +12,16 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * PATCH /api/tasks/:id — partial update.
- * The "never repeats" business logic lives here, in exactly one place,
- * for both faces:
- *   - status -> 'done'  sets done_at = now()
- *   - status leaves 'done' clears done_at
- *   - delegatedTo set (non-empty) also sets status = 'waiting'
+ * The business logic lives here, in exactly one place, for both faces:
+ *   - status -> 'done'                  sets done_at = now()
+ *   - status leaves 'done'              clears done_at
+ *   - delegatedTo set (non-empty)       also sets status = 'waiting' and waiting_on
+ *   - status candidate -> anything live sets confirmed_at = now(), confidence = 'user'
+ *   - evidence on done                  kept forever with the row
  */
 export async function PATCH(
   req: NextRequest,
@@ -55,19 +58,41 @@ export async function PATCH(
       patch.flag = body.flag as TaskFlag;
     }
 
-    if (body.delegatedTo !== undefined) {
-      if (body.delegatedTo === null || body.delegatedTo === "") {
-        patch.delegatedTo = null;
-      } else if (typeof body.delegatedTo === "string") {
-        patch.delegatedTo = body.delegatedTo.trim();
-      } else {
-        return apiError("invalid delegatedTo", 400);
+    if (body.title !== undefined) {
+      if (typeof body.title !== "string" || !body.title.trim()) {
+        return apiError("invalid title", 400);
       }
+      patch.title = body.title.trim();
+    }
+
+    const nullableString = (key: keyof TaskPatch, raw: unknown): string | null | undefined => {
+      if (raw === undefined) return undefined;
+      if (raw === null || raw === "") return null;
+      if (typeof raw === "string") return raw.trim();
+      throw new Error(`invalid ${String(key)}`);
+    };
+
+    try {
+      const d = nullableString("delegatedTo", body.delegatedTo);
+      if (d !== undefined) patch.delegatedTo = d;
+      const w = nullableString("waitingOn", body.waitingOn);
+      if (w !== undefined) patch.waitingOn = w;
+      const sa = nullableString("sourceAccount", body.sourceAccount);
+      if (sa !== undefined) patch.sourceAccount = sa;
+      const sl = nullableString("sourceLink", body.sourceLink);
+      if (sl !== undefined) patch.sourceLink = sl;
+    } catch (e) {
+      return apiError((e as Error).message, 400);
     }
 
     if (body.note !== undefined) {
       if (typeof body.note !== "string") return apiError("invalid note", 400);
       patch.note = body.note;
+    }
+
+    if (body.evidence !== undefined) {
+      if (typeof body.evidence !== "string") return apiError("invalid evidence", 400);
+      patch.evidence = body.evidence;
     }
 
     if (body.unsure !== undefined) {
@@ -78,6 +103,13 @@ export async function PATCH(
     if (body.conradNote !== undefined) {
       if (typeof body.conradNote !== "string") return apiError("invalid conradNote", 400);
       patch.conradNote = body.conradNote;
+    }
+
+    if (body.confidence !== undefined) {
+      if (body.confidence !== "ai" && body.confidence !== "user") {
+        return apiError("invalid confidence", 400);
+      }
+      patch.confidence = body.confidence;
     }
 
     if (body.areaId !== undefined) {
@@ -102,29 +134,51 @@ export async function PATCH(
       }
     }
 
-    if (body.dueDate !== undefined) {
-      if (body.dueDate === null || body.dueDate === "") {
-        patch.dueDate = null;
-      } else if (
-        typeof body.dueDate === "string" &&
-        /^\d{4}-\d{2}-\d{2}$/.test(body.dueDate)
-      ) {
-        patch.dueDate = body.dueDate;
-      } else {
-        return apiError("invalid dueDate", 400);
+    const dateField = (key: "dueDate" | "startAfter" | "nextReviewAt") => {
+      const raw = body[key];
+      if (raw === undefined) return true;
+      if (raw === null || raw === "") {
+        patch[key] = null;
+        return true;
       }
-    }
+      if (typeof raw === "string" && YMD.test(raw)) {
+        patch[key] = raw;
+        return true;
+      }
+      return false;
+    };
+    if (!dateField("dueDate")) return apiError("invalid dueDate", 400);
+    if (!dateField("startAfter")) return apiError("invalid startAfter", 400);
+    if (!dateField("nextReviewAt")) return apiError("invalid nextReviewAt", 400);
 
     if (Object.keys(patch).length === 0) {
       return apiError("empty patch", 400);
     }
 
-    // Business rules — one place, both faces.
+    // Business rules: one place, both faces.
     if (patch.delegatedTo && patch.status === undefined) {
       patch.status = "waiting";
     }
+    if (patch.delegatedTo && patch.waitingOn === undefined) {
+      patch.waitingOn = patch.delegatedTo;
+    }
     if (patch.status !== undefined) {
       patch.doneAt = patch.status === "done" ? new Date().toISOString() : null;
+      if (patch.status !== "candidate") {
+        // Any move off candidate is Brad (or Conrad on his word) confirming it.
+        const store = await getStore();
+        const current = (await store.listTasks({ areaId: "all", includeDone: true })).find(
+          (t) => t.id === params.id
+        );
+        if (current && current.status === "candidate") {
+          patch.confirmedAt = new Date().toISOString();
+          if (patch.confidence === undefined) patch.confidence = "user";
+          // Legacy rows carried the candidate marker in the title; drop it.
+          if (patch.title === undefined && /^CANDIDATE:\s*/i.test(current.title)) {
+            patch.title = current.title.replace(/^CANDIDATE:\s*/i, "");
+          }
+        }
+      }
     }
 
     const store = await getStore();

@@ -41,10 +41,10 @@ export default function Gate() {
         CONRAD &middot; CHIEF OF STAFF
       </div>
       <h1 className="mb-1 mt-0.5 font-serif text-[26px] font-bold text-navy">
-        Daily Brief
+        Dashboard
       </h1>
       <p className="mb-6 text-sm text-muted">
-        Private. Enter the passphrase to open your brief.
+        Private. Enter the passphrase to open your dashboard.
       </p>
       <form onSubmit={submit}>
         <input
@@ -61,7 +61,7 @@ export default function Gate() {
           disabled={busy}
           className="mt-3 w-full rounded-[10px] border border-navy bg-navy py-3.5 text-[15px] font-semibold text-white disabled:opacity-60"
         >
-          {busy ? "Checking…" : "Open my brief"}
+          {busy ? "Checking…" : "Open my dashboard"}
         </button>
       </form>
       {error && <p className="mt-3 text-sm text-redflag">{error}</p>}
