@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
-import type { Store } from "./store";
+import type { Store, TaskFilter } from "./store";
 import type {
   Area,
   CreateTaskInput,
@@ -73,12 +73,13 @@ export class DevStore implements Store {
     });
   }
 
-  listTasks(filter: { areaId?: string; includeDone: boolean }): Promise<Task[]> {
+  listTasks(filter: TaskFilter): Promise<Task[]> {
     return this.locked(async () => {
       const d = await this.load();
       return d.tasks.filter((t) => {
         if (filter.areaId && filter.areaId !== "all" && t.areaId !== filter.areaId) return false;
-        if (!filter.includeDone && t.status === "done") return false;
+        if (filter.statuses && filter.statuses.length) return filter.statuses.includes(t.status);
+        if (!filter.includeDone && (t.status === "done" || t.status === "cancelled")) return false;
         return true;
       });
     });
@@ -93,7 +94,7 @@ export class DevStore implements Store {
         projectId: input.projectId ?? null,
         title: input.title,
         note: input.note ?? "",
-        status: "open",
+        status: input.status ?? "open",
         flag: input.flag ?? "none",
         delegatedTo: null,
         dueDate: input.dueDate ?? null,
@@ -103,6 +104,14 @@ export class DevStore implements Store {
         createdAt: new Date().toISOString(),
         doneAt: null,
         sortOrder: 0,
+        sourceAccount: input.sourceAccount ?? null,
+        sourceLink: input.sourceLink ?? null,
+        waitingOn: input.waitingOn ?? null,
+        confidence: input.confidence ?? null,
+        confirmedAt: null,
+        startAfter: input.startAfter ?? null,
+        nextReviewAt: input.nextReviewAt ?? null,
+        evidence: "",
       };
       d.tasks.push(task);
       await this.save(d);
@@ -128,6 +137,15 @@ export class DevStore implements Store {
         ...(patch.projectId !== undefined ? { projectId: patch.projectId } : {}),
         ...(patch.dueDate !== undefined ? { dueDate: patch.dueDate } : {}),
         ...(patch.doneAt !== undefined ? { doneAt: patch.doneAt } : {}),
+        ...(patch.title !== undefined ? { title: patch.title } : {}),
+        ...(patch.sourceAccount !== undefined ? { sourceAccount: patch.sourceAccount } : {}),
+        ...(patch.sourceLink !== undefined ? { sourceLink: patch.sourceLink } : {}),
+        ...(patch.waitingOn !== undefined ? { waitingOn: patch.waitingOn } : {}),
+        ...(patch.confidence !== undefined ? { confidence: patch.confidence } : {}),
+        ...(patch.confirmedAt !== undefined ? { confirmedAt: patch.confirmedAt } : {}),
+        ...(patch.startAfter !== undefined ? { startAfter: patch.startAfter } : {}),
+        ...(patch.nextReviewAt !== undefined ? { nextReviewAt: patch.nextReviewAt } : {}),
+        ...(patch.evidence !== undefined ? { evidence: patch.evidence } : {}),
       };
       d.tasks[idx] = next;
       await this.save(d);
