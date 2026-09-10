@@ -2,14 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticate, unauthorized, apiError } from "@/lib/auth";
 import { getStore } from "@/lib/store";
 import { sortTasks } from "@/lib/derive";
-import { TASK_FLAGS, TASK_SOURCES, type TaskFlag, type TaskSource } from "@/lib/types";
+import {
+  TASK_FLAGS,
+  TASK_SOURCES,
+  TASK_STATUSES,
+  type TaskFlag,
+  type TaskSource,
+  type TaskStatus,
+} from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
- * GET /api/tasks?area=<id|all>&include=<open|all>
- * Default excludes done. Sort: red flag first, then sort_order, then created_at.
+ * GET /api/tasks?area=<id|all>&include=<open|all>&status=<a,b,c>
+ *   include=open (default)  live tasks: open, in_progress, waiting, blocked, candidate, someday
+ *   include=all             everything, including done and cancelled
+ *   status=done,cancelled   explicit list, wins over include
+ * Sort: red flag first, then sort_order, then created_at.
  */
 export async function GET(req: NextRequest) {
   if (!authenticate(req)) return unauthorized();
@@ -17,10 +29,18 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const area = url.searchParams.get("area") || "all";
     const include = url.searchParams.get("include") === "all" ? "all" : "open";
+    const statusParam = url.searchParams.get("status");
+    const statuses = statusParam
+      ? (statusParam
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => (TASK_STATUSES as string[]).includes(s)) as TaskStatus[])
+      : undefined;
     const store = await getStore();
     const tasks = await store.listTasks({
       areaId: area,
       includeDone: include === "all",
+      statuses: statuses && statuses.length ? statuses : undefined,
     });
     return NextResponse.json(sortTasks(tasks));
   } catch (e) {
@@ -31,8 +51,11 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/tasks — create.
- * Body { area, title, note?, projectId?, flag?, dueDate?, source }.
+ * Body { area, title, note?, projectId?, flag?, dueDate?, source, status?,
+ *        sourceAccount?, sourceLink?, waitingOn?, confidence?, startAfter?, nextReviewAt? }
  * Unknown/empty area defaults to 'inbox' (never force categorizing in the moment).
+ * Source is stored as sent when it is a known value; it is never collapsed to
+ * 'conrad' just because the caller is Conrad.
  */
 export async function POST(req: NextRequest) {
   const caller = authenticate(req);
@@ -58,16 +81,33 @@ export async function POST(req: NextRequest) {
       ? (flagRaw as TaskFlag)
       : "none";
 
-    const sourceRaw = typeof body.source === "string" ? body.source : "";
+    const sourceRaw = typeof body.source === "string" ? body.source.trim() : "";
     const fallback: TaskSource = caller === "conrad" ? "conrad" : "phone";
     const source: TaskSource = (TASK_SOURCES as string[]).includes(sourceRaw)
       ? (sourceRaw as TaskSource)
       : fallback;
 
-    const dueDate =
-      typeof body.dueDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.dueDate)
-        ? body.dueDate
-        : null;
+    const statusRaw = typeof body.status === "string" ? body.status.trim() : "";
+    let status: TaskStatus = "open";
+    if (statusRaw) {
+      if (!(TASK_STATUSES as string[]).includes(statusRaw)) return apiError("invalid status", 400);
+      if (statusRaw === "done" || statusRaw === "cancelled") {
+        return apiError("create a task as open first, then PATCH it done", 400);
+      }
+      status = statusRaw as TaskStatus;
+    }
+    // Only Conrad may seed candidates; the phone always creates real tasks.
+    if (status === "candidate" && caller !== "conrad") status = "open";
+
+    const ymd = (v: unknown) => (typeof v === "string" && YMD.test(v) ? v : null);
+    const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+    const confidence =
+      body.confidence === "ai" || body.confidence === "user"
+        ? body.confidence
+        : status === "candidate"
+        ? "ai"
+        : "user";
 
     const task = await store.createTask({
       areaId,
@@ -75,8 +115,15 @@ export async function POST(req: NextRequest) {
       note: typeof body.note === "string" ? body.note : "",
       projectId: typeof body.projectId === "string" ? body.projectId : null,
       flag,
-      dueDate,
+      dueDate: ymd(body.dueDate),
       source,
+      status,
+      sourceAccount: str(body.sourceAccount),
+      sourceLink: str(body.sourceLink),
+      waitingOn: str(body.waitingOn),
+      confidence,
+      startAfter: ymd(body.startAfter),
+      nextReviewAt: ymd(body.nextReviewAt),
     });
     return NextResponse.json(task, { status: 201 });
   } catch (e) {

@@ -1,7 +1,7 @@
 {
-  "name": "Daily Brief",
-  "short_name": "Daily Brief",
-  "description": "Conrad · Chief of Staff — one place that holds all of it.",
+  "name": "Conrad Dashboard",
+  "short_name": "Conrad",
+  "description": "Conrad, Chief of Staff. One place that holds all of it.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#E6E2D5",

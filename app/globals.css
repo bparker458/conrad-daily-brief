@@ -49,3 +49,19 @@ body {
   border-radius: 6px;
   transition: width 0.4s ease;
 }
+
+/* Rendered state documents (/areas/[slug]) */
+.statedoc { font-size: 15px; line-height: 1.55; color: var(--ink); }
+.statedoc h1, .statedoc h2, .statedoc h3 { font-family: Georgia, "Times New Roman", serif; color: var(--nv); margin: 1.4em 0 0.4em; line-height: 1.25; }
+.statedoc h1 { font-size: 22px; } .statedoc h2 { font-size: 18px; } .statedoc h3 { font-size: 16px; }
+.statedoc p { margin: 0.6em 0; }
+.statedoc ul, .statedoc ol { padding-left: 1.3em; margin: 0.5em 0; }
+.statedoc li { margin: 0.25em 0; }
+.statedoc table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin: 0.8em 0; display: block; overflow-x: auto; }
+.statedoc th, .statedoc td { border: 1px solid var(--ln); padding: 5px 8px; text-align: left; vertical-align: top; }
+.statedoc th { background: var(--chip); }
+.statedoc code { background: var(--chip); padding: 1px 4px; border-radius: 4px; font-size: 13px; }
+.statedoc pre { background: var(--chip); padding: 10px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; }
+.statedoc blockquote { border-left: 3px solid var(--nv2); margin: 0.8em 0; padding: 0.2em 0.9em; color: var(--mu); }
+.statedoc a { color: var(--nv2); }
+.statedoc input[type=checkbox] { margin-right: 6px; }
