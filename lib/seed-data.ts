@@ -29,6 +29,14 @@ const seedTask = (areaId: string, title: string, flag: TaskFlag): Omit<Task, "id
   source: "seed",
   doneAt: null,
   sortOrder: 0,
+  sourceAccount: null,
+  sourceLink: null,
+  waitingOn: null,
+  confidence: null,
+  confirmedAt: null,
+  startAfter: null,
+  nextReviewAt: null,
+  evidence: "",
 });
 
 export const SEED_TASKS = [

@@ -4,7 +4,16 @@ import type {
   Project,
   Task,
   TaskPatch,
+  TaskStatus,
 } from "./types";
+
+export interface TaskFilter {
+  areaId?: string;
+  /** false = live tasks only (excludes done and cancelled). */
+  includeDone: boolean;
+  /** Restrict to these statuses (overrides includeDone when given). */
+  statuses?: TaskStatus[];
+}
 
 /**
  * The single door to the data (Section 3 of the handoff).
@@ -14,7 +23,7 @@ import type {
 export interface Store {
   listAreas(): Promise<Area[]>;
   listProjects(): Promise<Project[]>;
-  listTasks(filter: { areaId?: string; includeDone: boolean }): Promise<Task[]>;
+  listTasks(filter: TaskFilter): Promise<Task[]>;
   createTask(input: CreateTaskInput): Promise<Task>;
   /** Returns the updated task, or null if no task has that id. */
   updateTask(id: string, patch: TaskPatch): Promise<Task | null>;
@@ -34,10 +43,10 @@ let warned = false;
 
 /**
  * Selects the real Supabase store when configured, otherwise a local
- * file-backed dev store so the whole app can be built and tested before
- * Marshall creates the Supabase project (Section 12). Same interface,
- * same API layer, same logic — the dev store is never a second source
- * of truth in production because production always has SUPABASE_URL set.
+ * file-backed dev store so the whole app can be built and tested without
+ * a database. Same interface, same API layer, same logic; the dev store is
+ * never a second source of truth in production because production always
+ * has SUPABASE_URL set.
  */
 export async function getStore(): Promise<Store> {
   if (cached) return cached;
@@ -47,7 +56,7 @@ export async function getStore(): Promise<Store> {
   } else {
     if (!warned) {
       console.warn(
-        "[store] SUPABASE_URL not configured — using local dev store (.dev-store.json). Fine for development, not for production."
+        "[store] SUPABASE_URL not configured, using local dev store (.dev-store.json). Fine for development, not for production."
       );
       warned = true;
     }
