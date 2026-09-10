@@ -2,12 +2,12 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Daily Brief",
-  description: "Conrad · Chief of Staff — one place that holds all of it.",
+  title: "Conrad Dashboard",
+  description: "Conrad, Chief of Staff. One place that holds all of it.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Daily Brief",
+    title: "Conrad Dashboard",
     statusBarStyle: "black-translucent",
   },
   icons: {
