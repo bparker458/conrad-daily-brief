@@ -9,6 +9,14 @@ import type {
 } from "./types";
 import { CLOSED_STATUSES, LEGACY_SOURCES } from "./types";
 
+/**
+ * Every Supabase read must hit the database. Next 14 patches fetch() and can
+ * serve a cached copy of an identical GET, which froze /api/state-docs at the
+ * 5:40am list on 2026-09-11 while the rows underneath kept changing. no-store
+ * on the client's own fetch closes that for every query at once.
+ */
+const noStoreFetch: typeof fetch = (input, init) => fetch(input, { ...init, cache: "no-store" });
+
 /* Row shapes as they exist in Postgres (snake_case). */
 interface AreaRow {
   id: string;
@@ -179,6 +187,7 @@ export class SupabaseStore implements Store {
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     this.client = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: { fetch: noStoreFetch },
     });
   }
 

@@ -2,6 +2,14 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { CalendarEvent } from "./types";
 
 /**
+ * Every Supabase read must hit the database. Next 14 patches fetch() and can
+ * serve a cached copy of an identical GET, which froze /api/state-docs at the
+ * 5:40am list on 2026-09-11 while the rows underneath kept changing. no-store
+ * on the client's own fetch closes that for every query at once.
+ */
+const noStoreFetch: typeof fetch = (input, init) => fetch(input, { ...init, cache: "no-store" });
+
+/**
  * Dashboard entities (captures, people, state docs, daily numbers).
  *
  * Deliberately separate from lib/store.ts: that interface is the single door
@@ -37,7 +45,7 @@ function db(): SupabaseClient {
     client = createClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { persistSession: false, autoRefreshToken: false } }
+      { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: noStoreFetch } }
     );
   }
   return client;
