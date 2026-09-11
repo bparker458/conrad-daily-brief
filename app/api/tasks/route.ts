@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticate, unauthorized, apiError } from "@/lib/auth";
 import { getStore } from "@/lib/store";
 import { sortTasks } from "@/lib/derive";
+import { findDuplicate, stripCandidatePrefix } from "@/lib/dedupe";
 import {
   TASK_FLAGS,
   TASK_SOURCES,
@@ -68,7 +69,10 @@ export async function POST(req: NextRequest) {
       return apiError("bad request body", 400);
     }
 
-    const title = typeof body.title === "string" ? body.title.trim() : "";
+    const rawTitle = typeof body.title === "string" ? body.title.trim() : "";
+    // Old sweep habit: "CANDIDATE: ..." in the title with status open. The
+    // marker becomes the status and never reaches the card.
+    const { title, hadPrefix } = stripCandidatePrefix(rawTitle);
     if (!title) return apiError("title is required", 400);
 
     const store = await getStore();
@@ -96,11 +100,23 @@ export async function POST(req: NextRequest) {
       }
       status = statusRaw as TaskStatus;
     }
+    if (hadPrefix && caller === "conrad" && (!statusRaw || statusRaw === "open")) status = "candidate";
     // Only Conrad may seed candidates; the phone always creates real tasks.
     if (status === "candidate" && caller !== "conrad") status = "open";
 
     const ymd = (v: unknown) => (typeof v === "string" && YMD.test(v) ? v : null);
     const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+    // Conrad's writes are deduped here, at the door, not just in the prompt.
+    // A duplicate returns the existing row with deduped:true and status 200,
+    // so a sweep's "created" count stays honest. allowDuplicate:true skips it.
+    if (caller === "conrad" && body.allowDuplicate !== true) {
+      const existing = await store.listTasks({ areaId: "all", includeDone: true });
+      const dup = findDuplicate(existing, title, str(body.sourceLink));
+      if (dup) {
+        return NextResponse.json({ ...dup, deduped: true, duplicateOf: dup.id }, { status: 200 });
+      }
+    }
 
     const confidence =
       body.confidence === "ai" || body.confidence === "user"

@@ -5,7 +5,7 @@
    - writes (POST/PATCH) are NEVER cached or faked here; the app queues and
      retries them itself, and "Saved" only fires on a confirmed server write. */
 
-const VERSION = "cb-v1";
+const VERSION = "cb-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-180.png"];
 
 self.addEventListener("install", (event) => {
@@ -59,11 +59,15 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(VERSION).then((c) => c.put("/", copy));
+          // Cache each page under its own path. Caching every page as "/"
+          // meant an offline open of the home screen could show /done.
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(VERSION).then((c) => c.put(url.pathname, copy));
+          }
           return res;
         })
-        .catch(() => caches.match("/"))
+        .catch(() => caches.match(url.pathname).then((hit) => hit || caches.match("/")))
     );
     return;
   }
