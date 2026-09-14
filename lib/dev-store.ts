@@ -76,12 +76,20 @@ export class DevStore implements Store {
   listTasks(filter: TaskFilter): Promise<Task[]> {
     return this.locked(async () => {
       const d = await this.load();
-      return d.tasks.filter((t) => {
+      const rows = d.tasks.filter((t) => {
         if (filter.areaId && filter.areaId !== "all" && t.areaId !== filter.areaId) return false;
         if (filter.statuses && filter.statuses.length) return filter.statuses.includes(t.status);
         if (!filter.includeDone && (t.status === "done" || t.status === "cancelled")) return false;
         return true;
       });
+      // Same stable base order and paging contract as the Supabase store, so
+      // dev and production cannot disagree about what page 2 contains.
+      rows.sort((a, b) =>
+        a.createdAt === b.createdAt ? a.id.localeCompare(b.id) : a.createdAt.localeCompare(b.createdAt)
+      );
+      if (filter.limit === undefined) return rows;
+      const from = filter.offset ?? 0;
+      return rows.slice(from, from + filter.limit);
     });
   }
 
