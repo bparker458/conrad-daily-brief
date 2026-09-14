@@ -13,6 +13,15 @@ export interface TaskFilter {
   includeDone: boolean;
   /** Restrict to these statuses (overrides includeDone when given). */
   statuses?: TaskStatus[];
+  /**
+   * Max rows to return. Omitted means "no page size of our own", which is
+   * NOT the same as "everything": PostgREST still applies its own db-max-rows
+   * ceiling and returns a short list with a 200, silently. Callers that care
+   * about completeness pass a limit and check whether they got a full page.
+   */
+  limit?: number;
+  /** Rows to skip before the page. Only meaningful together with limit. */
+  offset?: number;
 }
 
 /**
