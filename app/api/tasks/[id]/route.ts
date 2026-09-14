@@ -27,7 +27,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  if (!authenticate(req)) return unauthorized();
+  const caller = authenticate(req);
+  if (!caller) return unauthorized();
   try {
     let body: Record<string, unknown>;
     try {
@@ -164,6 +165,21 @@ export async function PATCH(
     }
     if (patch.status !== undefined) {
       patch.doneAt = patch.status === "done" ? new Date().toISOString() : null;
+      /**
+       * Every closed row has to say how it was closed. Conrad sends real
+       * evidence ("Brad by text 2026-09-12: paid it"). The checkbox on the
+       * phone sends none, which is how 91 rows ended up done with a blank
+       * evidence field and nothing left to reconstruct the reason from. A
+       * blank is not neutral: it makes "closed on purpose" and "closed by
+       * accident" look identical six months later. Stamp the face and the
+       * time instead, and never overwrite evidence the caller supplied.
+       */
+      if (patch.status === "done" && patch.evidence === undefined) {
+        patch.evidence =
+          caller === "conrad"
+            ? `Closed by Conrad with no stated evidence ${new Date().toISOString()}`
+            : `Checked off on the dashboard ${new Date().toISOString()}`;
+      }
       if (patch.status !== "candidate") {
         // Any move off candidate is Brad (or Conrad on his word) confirming it.
         const store = await getStore();
