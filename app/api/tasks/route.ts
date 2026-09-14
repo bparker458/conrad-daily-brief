@@ -17,12 +17,28 @@ export const dynamic = "force-dynamic";
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Hard ceiling on one page of tasks, and the default when none is asked for. */
+const MAX_PAGE = 1000;
+
 /**
- * GET /api/tasks?area=<id|all>&include=<open|all>&status=<a,b,c>
+ * GET /api/tasks?area=<id|all>&include=<open|all>&status=<a,b,c>&limit=<n>&offset=<n>
  *   include=open (default)  live tasks: open, in_progress, waiting, blocked, candidate, someday
  *   include=all             everything, including done and cancelled
  *   status=done,cancelled   explicit list, wins over include
+ *   limit                   page size, default 1000, max 1000
+ *   offset                  rows to skip, default 0
  * Sort: red flag first, then sort_order, then created_at.
+ *
+ * Truncation is reported, never silent. Until 2026-09-13 this handler took no
+ * limit or offset at all and simply returned whatever PostgREST felt like
+ * giving it, so a caller reading a short list had no way to tell a complete
+ * answer from a cut-off one. It reads one row past the page to decide, and
+ * answers on headers so the body stays a plain array for every existing
+ * caller:
+ *   X-Total-Returned  rows in this response
+ *   X-Has-More        "true" when more rows exist past this page
+ *   X-Next-Offset     offset to pass for the next page, only when has-more
+ * A client that ignores the headers behaves exactly as before.
  */
 export async function GET(req: NextRequest) {
   if (!authenticate(req)) return unauthorized();
@@ -37,13 +53,31 @@ export async function GET(req: NextRequest) {
           .map((s) => s.trim())
           .filter((s) => (TASK_STATUSES as string[]).includes(s)) as TaskStatus[])
       : undefined;
+    const num = (raw: string | null, dflt: number, max: number) => {
+      const n = Number(raw);
+      if (!raw || !Number.isInteger(n) || n < 0) return dflt;
+      return Math.min(n, max);
+    };
+    const limit = num(url.searchParams.get("limit"), MAX_PAGE, MAX_PAGE);
+    const offset = num(url.searchParams.get("offset"), 0, Number.MAX_SAFE_INTEGER);
+
     const store = await getStore();
-    const tasks = await store.listTasks({
+    // One row past the page: the cheapest honest way to know there is more.
+    const rows = await store.listTasks({
       areaId: area,
       includeDone: include === "all",
       statuses: statuses && statuses.length ? statuses : undefined,
+      limit: limit + 1,
+      offset,
     });
-    return NextResponse.json(sortTasks(tasks));
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const headers: Record<string, string> = {
+      "X-Total-Returned": String(page.length),
+      "X-Has-More": hasMore ? "true" : "false",
+    };
+    if (hasMore) headers["X-Next-Offset"] = String(offset + limit);
+    return NextResponse.json(sortTasks(page), { headers });
   } catch (e) {
     console.error("[/api/tasks GET]", e);
     return apiError("tasks read failed", 500);
