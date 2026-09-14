@@ -217,6 +217,17 @@ export class SupabaseStore implements Store {
     } else if (!filter.includeDone) {
       q = q.not("status", "in", `(${CLOSED_STATUSES.join(",")})`);
     }
+    /**
+     * A deterministic base order. The API layer re-sorts for display, but a
+     * page of an unordered query is not a stable page: the same offset can
+     * return different rows on two calls, so an item can be skipped entirely
+     * while the caller believes it read the whole list.
+     */
+    q = q.order("created_at", { ascending: true }).order("id", { ascending: true });
+    if (filter.limit !== undefined) {
+      const from = filter.offset ?? 0;
+      q = q.range(from, from + filter.limit - 1);
+    }
     const { data, error } = await q;
     if (error) throw new Error(`tasks read failed: ${error.message}`);
     return (data as TaskRow[]).map(mapTask);
