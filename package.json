@@ -5,12 +5,13 @@
   "description": "One personal command surface for Brad Parker. Phone Daily Brief (Face A) + Conrad API contract (Face B). One shared list, one source of truth.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "build:netlify": "next build && node scripts/check-bundle.mjs",
+    "build": "node scripts/stamp-sw.mjs && next build",
+    "build:netlify": "node scripts/stamp-sw.mjs && next build && node scripts/check-bundle.mjs",
     "start": "next start",
     "check:bundle": "node scripts/check-bundle.mjs",
     "hash": "node scripts/hash-passphrase.mjs",
-    "conrad:test": "node scripts/conrad-test.mjs"
+    "conrad:test": "node scripts/conrad-test.mjs",
+    "stamp:sw": "node scripts/stamp-sw.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
