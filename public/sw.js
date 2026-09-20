@@ -5,7 +5,14 @@
    - writes (POST/PATCH) are NEVER cached or faked here; the app queues and
      retries them itself, and "Saved" only fires on a confirmed server write. */
 
-const VERSION = "cb-v2";
+/* VERSION is stamped per build by scripts/stamp-sw.mjs. It MUST change on
+   every deploy. Next emits new /_next/static chunk hashes each build and
+   Netlify 404s the previous ones, so a cache that outlives its deploy holds a
+   shell whose scripts no longer exist. That is a blank page, and it is what
+   happened on 2026-09-20: the 09-14 deploy changed every chunk hash while
+   VERSION sat at "cb-v2" from 09-11, so activate never purged the old shell
+   and app/page-a6b632811c80f1c5.js went 404. Do not hard-code it again. */
+const VERSION = "cb-dev";
 const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/icon-180.png"];
 
 self.addEventListener("install", (event) => {
